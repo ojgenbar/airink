@@ -1,8 +1,22 @@
-# Airink
+<p align="center">
+  <img src="Airink/Assets.xcassets/AppIcon.appiconset/icon_128x128@2x.png" width="128" height="128" alt="Airink app icon">
+</p>
 
-A tiny, private macOS menu-bar app for annotating clipboard screenshots.
+<h1 align="center">Airink</h1>
 
-**Hotkey → Annotate → Copy → Paste.**
+<p align="center">
+  A tiny, private, keyboard-focused macOS menu-bar app for annotating clipboard screenshots.
+</p>
+
+<p align="center">
+  <a href="https://github.com/ojgenbar/airink/releases/latest"><img src="https://img.shields.io/github/v/release/ojgenbar/airink" alt="Latest release"></a>
+  <img src="https://img.shields.io/badge/macOS-26%2B-blue" alt="macOS 26 or later">
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/ojgenbar/airink" alt="MIT license"></a>
+</p>
+
+**Hotkey → Annotate → Copy → Paste.** You can do the whole thing without the mouse, except for drawing itself. Every tool and width has a one-key shortcut, shown right on its button, and `Return` copies and closes.
+
+![The Airink editor: a screenshot annotated with arrows, text, rectangles, a square, 45° lines and a privacy mosaic](docs/images/editor.jpg)
 
 1. Take a screenshot to the clipboard: `⌃⇧⌘4`.
 2. Press `⇧⌘A`. Airink opens the image.
