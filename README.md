@@ -24,7 +24,7 @@ A tiny, private macOS menu-bar app for annotating clipboard screenshots.
 
 With the Text tool, click to type. `⇧Return` (or `⌥Return`) starts a new line. `Return` or `Esc` finishes the text, and a second `Return` copies the image.
 
-**Pixelate** covers an area with a coarse mosaic of the *original* image. It's always drawn beneath arrows, shapes and text, so you can annotate on top of it.
+**Pixelate** covers an area with a coarse mosaic of the *original* image. It's always drawn beneath arrows, shapes and text, so you can annotate on top of it. Pixelated areas are always opaque. On images with transparency, they replace the transparent pixels too, so nothing underneath can show through.
 
 The global shortcut can be changed in **Settings** (menu-bar icon › Settings…).
 

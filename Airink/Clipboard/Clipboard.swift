@@ -44,10 +44,25 @@ enum Clipboard {
     }
 
     nonisolated static func decode(_ data: Data) -> ClipboardImage? {
-        guard let source = CGImageSourceCreateWithData(data as CFData, nil),
-              let image = CGImageSourceCreateImageAtIndex(source, 0, nil)
-        else { return nil }
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
         let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
+        let orientation = (properties?[kCGImagePropertyOrientation] as? NSNumber)?.intValue ?? 1
+        let image: CGImage?
+        if orientation == 1 {
+            image = CGImageSourceCreateImageAtIndex(source, 0, nil)
+        } else {
+            // EXIF-rotated (e.g. camera JPEGs): bake the orientation in at full size, since
+            // the exported PNG won't carry the orientation tag.
+            let width = (properties?[kCGImagePropertyPixelWidth] as? NSNumber)?.intValue ?? 0
+            let height = (properties?[kCGImagePropertyPixelHeight] as? NSNumber)?.intValue ?? 0
+            let options: [CFString: Any] = [
+                kCGImageSourceCreateThumbnailFromImageAlways: true,
+                kCGImageSourceCreateThumbnailWithTransform: true,
+                kCGImageSourceThumbnailMaxPixelSize: max(width, height),
+            ]
+            image = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary)
+        }
+        guard let image else { return nil }
         let dpi = (properties?[kCGImagePropertyDPIWidth] as? NSNumber)?.doubleValue ?? 72
         let scale = min(max((dpi / 72).rounded(), 1), 4)
         return ClipboardImage(cgImage: image, pointScale: scale)

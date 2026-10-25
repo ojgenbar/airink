@@ -1,5 +1,7 @@
 import AppKit
 import Carbon.HIToolbox
+import ImageIO
+import UniformTypeIdentifiers
 import Testing
 @testable import Airink
 
@@ -30,6 +32,31 @@ enum TestImages {
         context.fill(CGRect(x: 0, y: 0, width: width, height: height))
         context.setFillColor(CGColor(srgbRed: 0, green: 0, blue: 0, alpha: 1))
         context.fill(CGRect(x: 0, y: 0, width: width / 2, height: height))
+        guard let image = context.makeImage() else { throw CreationFailed() }
+        return image
+    }
+
+    /// Left half opaque red, right half fully transparent.
+    static func redAndTransparent(width: Int, height: Int) throws -> CGImage {
+        guard let context = CGContext(
+            data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
+            space: CGColorSpace(name: CGColorSpace.sRGB)!,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { throw CreationFailed() }
+        context.setFillColor(CGColor(srgbRed: 1, green: 0, blue: 0, alpha: 1))
+        context.fill(CGRect(x: 0, y: 0, width: width / 2, height: height))
+        guard let image = context.makeImage() else { throw CreationFailed() }
+        return image
+    }
+
+    /// An 8-bit grayscale image (no alpha) filled with mid gray.
+    static func grayscale(width: Int, height: Int) throws -> CGImage {
+        guard let context = CGContext(
+            data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
+            space: CGColorSpaceCreateDeviceGray(), bitmapInfo: CGImageAlphaInfo.none.rawValue
+        ) else { throw CreationFailed() }
+        context.setFillColor(CGColor(gray: 0.5, alpha: 1))
+        context.fill(CGRect(x: 0, y: 0, width: width, height: height))
         guard let image = context.makeImage() else { throw CreationFailed() }
         return image
     }
@@ -131,6 +158,18 @@ struct PixelateTests {
         #expect(TestImages.pixel(of: output, x: 50, y: 10)[0] > 245) // Mosaic of white is white.
     }
 
+    @Test func mosaicHidesDetailOnTransparentImages() throws {
+        // One block over a sharp red/transparent edge must come out uniform and opaque.
+        let image = try TestImages.redAndTransparent(width: 40, height: 40)
+        let mosaic = Annotation(shape: .pixelate(CGRect(x: 10, y: 10, width: 20, height: 20)), color: .red, width: .thick)
+        let output = try #require(Renderer.render(image: image, annotations: [mosaic], pointScale: 1))
+
+        let left = TestImages.pixel(of: output, x: 12, y: 20)
+        let right = TestImages.pixel(of: output, x: 28, y: 20)
+        #expect(left == right)
+        #expect(left[3] == 255)
+    }
+
     @Test func areaOutsideImageIsClipped() throws {
         let image = try TestImages.solid(width: 50, height: 50)
         let mosaic = Annotation(shape: .pixelate(CGRect(x: -100, y: -100, width: 120, height: 120)), color: .red, width: .medium)
@@ -144,6 +183,22 @@ struct PixelateTests {
             tool: .pixelate, from: CGPoint(x: 30, y: 30), to: CGPoint(x: 10, y: 5), constrained: false, minimumLength: 3
         )
         #expect(shape == .pixelate(CGRect(x: 10, y: 5, width: 20, height: 25)))
+    }
+}
+
+struct ColorSpaceTests {
+    @Test func grayscaleImagesRenderAndExport() throws {
+        let image = try TestImages.grayscale(width: 60, height: 40)
+        let annotations = [
+            Annotation(shape: .rectangle(CGRect(x: 10, y: 10, width: 20, height: 20)), color: .red, width: .thin),
+            Annotation(shape: .pixelate(CGRect(x: 30, y: 0, width: 30, height: 40)), color: .red, width: .thin),
+        ]
+        let output = try #require(Renderer.render(image: image, annotations: annotations, pointScale: 1))
+        #expect(output.width == 60 && output.height == 40)
+        #expect(output.colorSpace?.model == .rgb)
+        #expect(Clipboard.pngData(output, pointScale: 1) != nil)
+        let red = TestImages.pixel(of: output, x: 10, y: 20)
+        #expect(red[0] > 200 && red[1] < 100)
     }
 }
 
@@ -170,6 +225,19 @@ struct ClipboardTests {
         pasteboard.clearContents()
         pasteboard.setString("hello", forType: .string)
         #expect(throws: Clipboard.ReadError.noImage) { try Clipboard.readImage(from: pasteboard).get() }
+    }
+
+    @Test func appliesJPEGOrientation() throws {
+        // 40×20 pixels stored, tagged "rotate 90° clockwise" (6): should decode as 20×40.
+        let image = try TestImages.solid(width: 40, height: 20)
+        let data = NSMutableData()
+        let destination = try #require(CGImageDestinationCreateWithData(data, UTType.jpeg.identifier as CFString, 1, nil))
+        CGImageDestinationAddImage(destination, image, [kCGImagePropertyOrientation: 6] as CFDictionary)
+        #expect(CGImageDestinationFinalize(destination))
+
+        let decoded = try #require(Clipboard.decode(data as Data))
+        #expect(decoded.cgImage.width == 20)
+        #expect(decoded.cgImage.height == 40)
     }
 
     @Test func missingDPIMeansOneToOne() throws {

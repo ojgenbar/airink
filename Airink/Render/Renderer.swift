@@ -7,20 +7,25 @@ import Foundation
 nonisolated enum Renderer {
     /// Composites `annotations` over `image` at full resolution.
     static func render(image: CGImage, annotations: [Annotation], pointScale: CGFloat) -> CGImage? {
-        let colorSpace = image.colorSpace.flatMap { $0.supportsOutput ? $0 : nil }
-            ?? CGColorSpace(name: CGColorSpace.sRGB)!
         guard let context = CGContext(
             data: nil,
             width: image.width,
             height: image.height,
             bitsPerComponent: 8,
             bytesPerRow: 0,
-            space: colorSpace,
+            space: rgbColorSpace(for: image),
             bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
         ) else { return nil }
         context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
         draw(annotations, in: context, image: image, pointScale: pointScale)
         return context.makeImage()
+    }
+
+    /// The image's own color space when it's RGB (e.g. Display P3 screenshots), otherwise sRGB.
+    /// Grayscale and indexed spaces can't back the RGBA bitmaps we draw into.
+    static func rgbColorSpace(for image: CGImage) -> CGColorSpace {
+        if let space = image.colorSpace, space.model == .rgb, space.supportsOutput { return space }
+        return CGColorSpace(name: CGColorSpace.sRGB)!
     }
 
     /// Draws mosaic areas first, then everything else in order, so arrows or text drawn
@@ -72,7 +77,9 @@ nonisolated enum Renderer {
     }
 
     /// Replaces `rect` with blocks of averaged color: the area is downsampled to one pixel per
-    /// block, then scaled back up without interpolation.
+    /// block, then scaled back up without interpolation. Blocks are always opaque (transparent
+    /// areas are flattened onto white), so nothing underneath shows through — on the canvas
+    /// the original image is a separate layer below the overlay.
     private static func drawMosaic(_ rect: CGRect, blockSize: CGFloat, image: CGImage, in context: CGContext) {
         let bounds = CGRect(x: 0, y: 0, width: image.width, height: image.height)
         let area = rect.integral.intersection(bounds)
@@ -85,18 +92,20 @@ nonisolated enum Renderer {
 
         let columns = max(1, Int((area.width / blockSize).rounded(.up)))
         let rows = max(1, Int((area.height / blockSize).rounded(.up)))
-        let colorSpace = crop.colorSpace.flatMap { $0.supportsOutput ? $0 : nil }
-            ?? CGColorSpace(name: CGColorSpace.sRGB)!
         guard let small = CGContext(
             data: nil, width: columns, height: rows, bitsPerComponent: 8, bytesPerRow: 0,
-            space: colorSpace, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            space: rgbColorSpace(for: image), bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue
         ) else { return }
+        let blockRect = CGRect(x: 0, y: 0, width: columns, height: rows)
+        small.setFillColor(CGColor(srgbRed: 1, green: 1, blue: 1, alpha: 1))
+        small.fill(blockRect)
         small.interpolationQuality = .high
-        small.draw(crop, in: CGRect(x: 0, y: 0, width: columns, height: rows))
+        small.draw(crop, in: blockRect)
         guard let blocks = small.makeImage() else { return }
 
         context.saveGState()
         context.interpolationQuality = .none
+        context.setBlendMode(.copy) // Replace, never blend with, the pixels underneath.
         context.draw(blocks, in: area)
         context.restoreGState()
     }
