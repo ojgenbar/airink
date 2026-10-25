@@ -91,7 +91,7 @@ Airink/
   Settings/   Settings view with shortcut recorder
 AirinkTests/  Swift Testing unit tests
 docs/DECISIONS.md  Platform investigation and architectural decisions
-scripts/      make-dmg.sh (release DMG), make-icon.swift (regenerates the app icon)
+scripts/      make-dmg.sh (release DMG), make-icon.swift (builds the icon set from design/icon-source.png)
 ```
 
 ## License

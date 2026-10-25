@@ -1,87 +1,74 @@
-// Draws Airink's app icon and writes every size the asset catalog needs.
-// Usage: swift scripts/make-icon.swift Airink/Assets.xcassets/AppIcon.appiconset
+// Fits a source icon to the macOS app-icon grid and writes every size the asset catalog needs.
+// Usage: swift scripts/make-icon.swift design/icon-source.png Airink/Assets.xcassets/AppIcon.appiconset
+//
+// The source is cropped to its visible tile (alpha ≥ 8; fainter stray pixels are dropped),
+// then scaled without distortion to fit the standard 824 px tile centered on a 1024 px canvas.
 
-import AppKit
 import CoreGraphics
+import Foundation
 import ImageIO
 import UniformTypeIdentifiers
 
-let outputDirectory = URL(fileURLWithPath: CommandLine.arguments.dropFirst().first ?? ".")
+let arguments = CommandLine.arguments.dropFirst()
+guard arguments.count == 2 else {
+    print("Usage: swift scripts/make-icon.swift <source.png> <AppIcon.appiconset>")
+    exit(1)
+}
+let sourceURL = URL(fileURLWithPath: arguments.first!)
+let outputDirectory = URL(fileURLWithPath: arguments.last!)
 
-func makeIcon(size: Int) -> CGImage {
-    let s = CGFloat(size) / 1024 // Design on a 1024 canvas.
+let canvasSize = 1024
+let tileSize: CGFloat = 824
+let colorSpace = CGColorSpace(name: CGColorSpace.sRGB)!
+
+func makeContext(size: Int) -> CGContext {
     let context = CGContext(
         data: nil, width: size, height: size, bitsPerComponent: 8, bytesPerRow: 0,
-        space: CGColorSpace(name: CGColorSpace.displayP3)!,
-        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        space: colorSpace, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
     )!
-    context.scaleBy(x: s, y: s)
-
-    // macOS icon grid: 824pt rounded square centered on the 1024 canvas, with a soft shadow.
-    let tile = CGRect(x: 100, y: 100, width: 824, height: 824)
-    let tilePath = CGPath(roundedRect: tile, cornerWidth: 185, cornerHeight: 185, transform: nil)
-    context.saveGState()
-    context.setShadow(offset: CGSize(width: 0, height: -12), blur: 28, color: CGColor(gray: 0, alpha: 0.3))
-    context.addPath(tilePath)
-    context.setFillColor(CGColor(gray: 0, alpha: 1))
-    context.fillPath()
-    context.restoreGState()
-
-    // Background: deep indigo → blue gradient.
-    context.saveGState()
-    context.addPath(tilePath)
-    context.clip()
-    let gradient = CGGradient(
-        colorsSpace: CGColorSpace(name: CGColorSpace.sRGB)!,
-        colors: [
-            CGColor(srgbRed: 0.16, green: 0.20, blue: 0.55, alpha: 1),
-            CGColor(srgbRed: 0.18, green: 0.48, blue: 0.98, alpha: 1),
-        ] as CFArray,
-        locations: [0, 1]
-    )!
-    context.drawLinearGradient(gradient, start: CGPoint(x: 200, y: 100), end: CGPoint(x: 824, y: 924), options: [])
-
-    // A "screenshot" card.
-    let card = CGRect(x: 230, y: 280, width: 564, height: 420)
-    context.setFillColor(CGColor(gray: 1, alpha: 0.95))
-    context.addPath(CGPath(roundedRect: card, cornerWidth: 36, cornerHeight: 36, transform: nil))
-    context.fillPath()
-    context.setFillColor(CGColor(srgbRed: 0.80, green: 0.84, blue: 0.92, alpha: 1))
-    for (y, width) in [(600.0, 300.0), (540.0, 380.0), (480.0, 240.0)] {
-        context.addPath(CGPath(
-            roundedRect: CGRect(x: 280, y: y, width: width, height: 26),
-            cornerWidth: 13, cornerHeight: 13, transform: nil
-        ))
-        context.fillPath()
-    }
-
-    // Red annotation rectangle and arrow, like Airink draws them.
-    let red = CGColor(srgbRed: 1.0, green: 0.23, blue: 0.19, alpha: 1)
-    context.setStrokeColor(red)
-    context.setFillColor(red)
-    context.setLineWidth(26)
-    context.setLineJoin(.round)
-    context.setLineCap(.round)
-    context.stroke(CGRect(x: 262, y: 452, width: 290, height: 190))
-
-    let tip = CGPoint(x: 560, y: 430)
-    let tail = CGPoint(x: 790, y: 210)
-    let angle = atan2(tip.y - tail.y, tip.x - tail.x)
-    let head: CGFloat = 120
-    let spread = CGFloat.pi / 7
-    context.strokeLineSegments(between: [
-        tail,
-        CGPoint(x: tip.x - cos(angle) * head * 0.8, y: tip.y - sin(angle) * head * 0.8),
-    ])
-    context.move(to: tip)
-    context.addLine(to: CGPoint(x: tip.x - cos(angle - spread) * head, y: tip.y - sin(angle - spread) * head))
-    context.addLine(to: CGPoint(x: tip.x - cos(angle + spread) * head, y: tip.y - sin(angle + spread) * head))
-    context.closePath()
-    context.drawPath(using: .fillStroke)
-    context.restoreGState()
-
-    return context.makeImage()!
+    context.interpolationQuality = .high
+    return context
 }
+
+/// Bounding box (top-left origin, as `cropping(to:)` expects) of pixels with alpha ≥ threshold.
+func visibleBounds(of image: CGImage, threshold: UInt8 = 8) -> CGRect {
+    let width = image.width, height = image.height
+    var pixels = [UInt8](repeating: 0, count: width * height * 4)
+    let context = CGContext(
+        data: &pixels, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4,
+        space: colorSpace, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+    )!
+    context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+    var minX = width, minY = height, maxX = -1, maxY = -1
+    for row in 0..<height { // Bitmap memory rows run top to bottom.
+        for column in 0..<width where pixels[(row * width + column) * 4 + 3] >= threshold {
+            minX = min(minX, column); maxX = max(maxX, column)
+            minY = min(minY, row); maxY = max(maxY, row)
+        }
+    }
+    return CGRect(x: minX, y: minY, width: maxX - minX + 1, height: maxY - minY + 1)
+}
+
+guard let source = CGImageSourceCreateWithURL(sourceURL as CFURL, nil),
+      let original = CGImageSourceCreateImageAtIndex(source, 0, nil)
+else {
+    print("Can't read \(sourceURL.path)")
+    exit(1)
+}
+let bounds = visibleBounds(of: original)
+let tile = original.cropping(to: bounds)!
+
+// Master: tile fitted into the 824 px grid square, centered on the 1024 canvas.
+let scale = tileSize / max(bounds.width, bounds.height)
+let fitted = CGSize(width: bounds.width * scale, height: bounds.height * scale)
+let master = makeContext(size: canvasSize)
+master.draw(tile, in: CGRect(
+    x: (CGFloat(canvasSize) - fitted.width) / 2,
+    y: (CGFloat(canvasSize) - fitted.height) / 2,
+    width: fitted.width,
+    height: fitted.height
+))
+let masterImage = master.makeImage()!
 
 func write(_ image: CGImage, to url: URL) {
     let destination = CGImageDestinationCreateWithURL(url as CFURL, UTType.png.identifier as CFString, 1, nil)!
@@ -89,16 +76,26 @@ func write(_ image: CGImage, to url: URL) {
     CGImageDestinationFinalize(destination)
 }
 
+// Remove previously generated PNGs so renamed sizes don't linger.
+for file in (try? FileManager.default.contentsOfDirectory(at: outputDirectory, includingPropertiesForKeys: nil)) ?? []
+where file.pathExtension == "png" {
+    try FileManager.default.removeItem(at: file)
+}
+
 var images: [[String: String]] = []
 for points in [16, 32, 128, 256, 512] {
-    for scale in [1, 2] {
-        let name = "icon_\(points)x\(points)\(scale == 2 ? "@2x" : "").png"
-        write(makeIcon(size: points * scale), to: outputDirectory.appendingPathComponent(name))
-        images.append(["idiom": "mac", "scale": "\(scale)x", "size": "\(points)x\(points)", "filename": name])
+    for pixelScale in [1, 2] {
+        let pixels = points * pixelScale
+        let name = "icon_\(points)x\(points)\(pixelScale == 2 ? "@2x" : "").png"
+        let context = makeContext(size: pixels)
+        context.draw(masterImage, in: CGRect(x: 0, y: 0, width: pixels, height: pixels))
+        write(context.makeImage()!, to: outputDirectory.appendingPathComponent(name))
+        images.append(["idiom": "mac", "scale": "\(pixelScale)x", "size": "\(points)x\(points)", "filename": name])
     }
 }
 
 let contents: [String: Any] = ["images": images, "info": ["author": "xcode", "version": 1]]
 let json = try JSONSerialization.data(withJSONObject: contents, options: [.prettyPrinted, .sortedKeys])
 try json.write(to: outputDirectory.appendingPathComponent("Contents.json"))
+print("Source tile \(Int(bounds.width))×\(Int(bounds.height)) px → \(Int(fitted.width.rounded()))×\(Int(fitted.height.rounded())) on \(canvasSize) canvas")
 print("Wrote \(images.count) icons to \(outputDirectory.path)")
