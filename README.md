@@ -6,7 +6,7 @@ A tiny, private macOS menu-bar app for annotating clipboard screenshots.
 
 1. Take a screenshot to the clipboard: `⌃⇧⌘4`.
 2. Press `⇧⌘A`. Airink opens the image.
-3. Draw arrows, rectangles, lines or text.
+3. Draw arrows, rectangles, lines or text, or pixelate private details.
 4. Press `Return` or `⌘C`. The annotated image goes to the clipboard and focus returns to your app.
 
 `Esc` closes without touching the clipboard.
@@ -15,14 +15,16 @@ A tiny, private macOS menu-bar app for annotating clipboard screenshots.
 
 | Key | Action |
 |---|---|
-| `A` `R` `L` `T` | Arrow, Rectangle, Line, Text |
-| `1` `2` `3` | Thin, medium, thick |
+| `A` `R` `L` `T` `P` | Arrow, Rectangle, Line, Text, Pixelate |
+| `1` `2` `3` | Thin, medium, thick (for Pixelate: block size) |
 | `Shift` while dragging | Snap lines/arrows to 45°, make squares |
-| `⌘Z` / `⇧⌘Z` | Undo / redo |
+| `⌘Z` / `⇧⌘Z` or toolbar buttons | Undo / redo |
 | `Return` / `⌘C` | Copy and close |
 | `Esc` / `⌘W` | Close without copying |
 
 With the Text tool, click to type. `⇧Return` (or `⌥Return`) starts a new line. `Return` or `Esc` finishes the text, and a second `Return` copies the image.
+
+**Pixelate** covers an area with a coarse mosaic of the *original* image. It's always drawn beneath arrows, shapes and text, so you can annotate on top of it.
 
 The global shortcut can be changed in **Settings** (menu-bar icon › Settings…).
 

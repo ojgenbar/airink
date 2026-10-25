@@ -51,9 +51,9 @@ final class CanvasView: NSView, NSTextViewDelegate {
     override func draw(_ dirtyRect: NSRect) {
         guard let context = NSGraphicsContext.current?.cgContext else { return }
         context.scaleBy(x: scale, y: scale)
-        Renderer.draw(document.annotations, in: context, pointScale: document.pointScale)
+        Renderer.draw(document.annotations, in: context, image: document.image, pointScale: document.pointScale)
         if let draft {
-            Renderer.draw(draft, in: context, pointScale: document.pointScale)
+            Renderer.draw(draft, in: context, image: document.image, pointScale: document.pointScale)
         }
     }
 

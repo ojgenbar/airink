@@ -79,6 +79,17 @@ struct AnnotationDocumentTests {
         #expect(document.annotations == [first, second])
     }
 
+    @Test func exposesUndoAvailabilityForButtons() throws {
+        let document = try makeDocument()
+        #expect(!document.canUndo && !document.canRedo)
+        document.add(line(5))
+        #expect(document.canUndo && !document.canRedo)
+        document.undo()
+        #expect(!document.canUndo && document.canRedo)
+        document.redo()
+        #expect(document.canUndo && !document.canRedo)
+    }
+
     @Test func newEditClearsRedo() throws {
         let document = try makeDocument()
         document.add(line(5))

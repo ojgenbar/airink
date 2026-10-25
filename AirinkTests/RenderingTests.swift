@@ -19,6 +19,21 @@ enum TestImages {
         return image
     }
 
+    /// Left half black, right half white.
+    static func split(width: Int, height: Int) throws -> CGImage {
+        guard let context = CGContext(
+            data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
+            space: CGColorSpace(name: CGColorSpace.sRGB)!,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { throw CreationFailed() }
+        context.setFillColor(CGColor(srgbRed: 1, green: 1, blue: 1, alpha: 1))
+        context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+        context.setFillColor(CGColor(srgbRed: 0, green: 0, blue: 0, alpha: 1))
+        context.fill(CGRect(x: 0, y: 0, width: width / 2, height: height))
+        guard let image = context.makeImage() else { throw CreationFailed() }
+        return image
+    }
+
     /// RGBA bytes of the pixel at (x, y), with y measured from the bottom.
     static func pixel(of image: CGImage, x: Int, y: Int) -> [UInt8] {
         var bytes = [UInt8](repeating: 0, count: 4)
@@ -89,6 +104,49 @@ struct RendererTests {
     }
 }
 
+struct PixelateTests {
+    @Test func blocksAverageTheAreaUnderneath() throws {
+        // A 20px block centered on the black/white edge averages to mid gray.
+        let image = try TestImages.split(width: 100, height: 40)
+        let mosaic = Annotation(shape: .pixelate(CGRect(x: 40, y: 0, width: 20, height: 20)), color: .red, width: .thick)
+        let output = try #require(Renderer.render(image: image, annotations: [mosaic], pointScale: 1))
+
+        for x in [42, 50, 58] {
+            let pixel = TestImages.pixel(of: output, x: x, y: 10)
+            #expect((90...170).contains(Int(pixel[0])), "x=\(x) value \(pixel[0])")
+        }
+        // Outside the area the image is untouched.
+        #expect(TestImages.pixel(of: output, x: 45, y: 30)[0] < 10)
+        #expect(TestImages.pixel(of: output, x: 80, y: 10)[0] > 245)
+    }
+
+    @Test func mosaicSamplesOriginalImageAndStaysUnderOtherAnnotations() throws {
+        let image = try TestImages.solid(width: 100, height: 100)
+        // Arrow drawn first, mosaic added afterwards on top of it.
+        let line = Annotation(shape: .line(from: CGPoint(x: 0, y: 50), to: CGPoint(x: 100, y: 50)), color: .black, width: .thick)
+        let mosaic = Annotation(shape: .pixelate(CGRect(x: 0, y: 0, width: 100, height: 100)), color: .red, width: .thick)
+        let output = try #require(Renderer.render(image: image, annotations: [line, mosaic], pointScale: 1))
+
+        #expect(TestImages.pixel(of: output, x: 50, y: 50)[0] < 50) // Line still visible.
+        #expect(TestImages.pixel(of: output, x: 50, y: 10)[0] > 245) // Mosaic of white is white.
+    }
+
+    @Test func areaOutsideImageIsClipped() throws {
+        let image = try TestImages.solid(width: 50, height: 50)
+        let mosaic = Annotation(shape: .pixelate(CGRect(x: -100, y: -100, width: 120, height: 120)), color: .red, width: .medium)
+        let output = try #require(Renderer.render(image: image, annotations: [mosaic], pointScale: 2))
+        #expect(output.width == 50)
+        #expect(TestImages.pixel(of: output, x: 5, y: 5)[0] > 245)
+    }
+
+    @Test func dragCreatesPixelateArea() {
+        let shape = Annotation.Shape.make(
+            tool: .pixelate, from: CGPoint(x: 30, y: 30), to: CGPoint(x: 10, y: 5), constrained: false, minimumLength: 3
+        )
+        #expect(shape == .pixelate(CGRect(x: 10, y: 5, width: 20, height: 25)))
+    }
+}
+
 struct ClipboardTests {
     private func makePasteboard() -> NSPasteboard {
         NSPasteboard(name: NSPasteboard.Name("dev.airink.tests.\(UUID().uuidString)"))
@@ -149,6 +207,7 @@ struct EditorCommandTests {
         #expect(command(kVK_ANSI_Z, [.command, .shift], "z") == .redo)
         #expect(command(kVK_ANSI_R, [], "r") == .tool(.rectangle))
         #expect(command(kVK_ANSI_3, [], "3") == .width(.thick))
+        #expect(command(kVK_ANSI_P, [], "p") == .tool(.pixelate))
         #expect(command(kVK_ANSI_R, .option, "r") == nil)
         #expect(command(kVK_ANSI_Q, [], "q") == nil)
     }

@@ -2,7 +2,7 @@ import CoreGraphics
 import Foundation
 
 nonisolated enum Tool: String, CaseIterable, Sendable {
-    case arrow, rectangle, line, text
+    case arrow, rectangle, line, text, pixelate
 }
 
 nonisolated enum AnnotationColor: String, CaseIterable, Sendable {
@@ -34,6 +34,16 @@ nonisolated enum StrokeWidth: Int, CaseIterable, Sendable {
         }
     }
 
+    /// Mosaic block size in points for the pixelate tool. Kept coarse so hidden text
+    /// can't be recovered from the averaged blocks.
+    var pixelBlockSize: CGFloat {
+        switch self {
+        case .thin: 8
+        case .medium: 12
+        case .thick: 20
+        }
+    }
+
     /// Font size in points for the text tool.
     var fontSize: CGFloat {
         switch self {
@@ -50,8 +60,10 @@ nonisolated struct Annotation: Identifiable, Equatable, Sendable {
         case arrow(from: CGPoint, to: CGPoint)
         case rectangle(CGRect)
         case line(from: CGPoint, to: CGPoint)
-        /// `origin` is the left end of the text baseline.
+        /// `origin` is the left end of the first line's baseline.
         case text(String, origin: CGPoint)
+        /// Area of the original image to cover with a mosaic.
+        case pixelate(CGRect)
     }
 
     let id: UUID
@@ -69,7 +81,7 @@ nonisolated struct Annotation: Identifiable, Equatable, Sendable {
 
 extension Annotation.Shape {
     /// Builds a drag-based shape. With `constrained` (Shift held), lines snap to 45° steps and
-    /// rectangles become squares. Returns nil for drags shorter than `minimumLength`.
+    /// rectangles (and pixelate areas) become squares. Returns nil for drags shorter than `minimumLength`.
     nonisolated static func make(
         tool: Tool,
         from start: CGPoint,
@@ -82,7 +94,7 @@ extension Annotation.Shape {
             let end = constrained ? snapped(end, around: start) : end
             guard hypot(end.x - start.x, end.y - start.y) >= minimumLength else { return nil }
             return tool == .arrow ? .arrow(from: start, to: end) : .line(from: start, to: end)
-        case .rectangle:
+        case .rectangle, .pixelate:
             var dx = end.x - start.x
             var dy = end.y - start.y
             if constrained {
@@ -91,7 +103,8 @@ extension Annotation.Shape {
                 dy = dy < 0 ? -side : side
             }
             guard abs(dx) >= minimumLength, abs(dy) >= minimumLength else { return nil }
-            return .rectangle(CGRect(x: start.x, y: start.y, width: dx, height: dy).standardized)
+            let rect = CGRect(x: start.x, y: start.y, width: dx, height: dy).standardized
+            return tool == .rectangle ? .rectangle(rect) : .pixelate(rect)
         case .text:
             return nil
         }

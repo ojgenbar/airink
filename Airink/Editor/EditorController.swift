@@ -7,7 +7,7 @@ final class EditorController: NSObject, NSWindowDelegate {
     private static let toolbarHeight: CGFloat = 52
     /// Space around the image, so it isn't clipped by the window's rounded corners.
     private static let padding: CGFloat = 12
-    private static let minimumWidth: CGFloat = 560
+    private static let minimumWidth: CGFloat = 760
 
     private var window: EditorWindow?
     private var canvas: CanvasView?
@@ -98,6 +98,8 @@ final class EditorController: NSObject, NSWindowDelegate {
 
         let toolbar = NSHostingView(rootView: EditorToolbar(
             document: document,
+            onUndo: { [weak self] in self?.perform(.undo) },
+            onRedo: { [weak self] in self?.perform(.redo) },
             onCancel: { [weak self] in self?.close() },
             onCopy: { [weak self] in self?.copyAndClose() }
         ))
@@ -119,8 +121,13 @@ final class EditorController: NSObject, NSWindowDelegate {
         switch command {
         case .copy: copyAndClose()
         case .cancel: close()
-        case .undo: document.undo()
-        case .redo: document.redo()
+        case .undo:
+            // Finish any text being typed first, so Undo removes it as one step.
+            canvas?.commitText()
+            document.undo()
+        case .redo:
+            canvas?.commitText()
+            document.redo()
         case let .tool(tool): document.tool = tool
         case let .width(width): document.width = width
         }

@@ -37,6 +37,7 @@ nonisolated enum EditorCommand: Equatable, Sendable {
         case "r": self = .tool(.rectangle)
         case "l": self = .tool(.line)
         case "t": self = .tool(.text)
+        case "p": self = .tool(.pixelate)
         case "1": self = .width(.thin)
         case "2": self = .width(.medium)
         case "3": self = .width(.thick)

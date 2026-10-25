@@ -19,17 +19,23 @@ nonisolated enum Renderer {
             bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
         ) else { return nil }
         context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
-        draw(annotations, in: context, pointScale: pointScale)
+        draw(annotations, in: context, image: image, pointScale: pointScale)
         return context.makeImage()
     }
 
-    static func draw(_ annotations: [Annotation], in context: CGContext, pointScale: CGFloat) {
-        for annotation in annotations {
-            draw(annotation, in: context, pointScale: pointScale)
+    /// Draws mosaic areas first, then everything else in order, so arrows or text drawn
+    /// before a mosaic stay visible on top of it.
+    static func draw(_ annotations: [Annotation], in context: CGContext, image: CGImage, pointScale: CGFloat) {
+        for annotation in annotations where annotation.isPixelate {
+            draw(annotation, in: context, image: image, pointScale: pointScale)
+        }
+        for annotation in annotations where !annotation.isPixelate {
+            draw(annotation, in: context, image: image, pointScale: pointScale)
         }
     }
 
-    static func draw(_ annotation: Annotation, in context: CGContext, pointScale: CGFloat) {
+    /// `image` is the original image; pixelate areas sample it, never other annotations.
+    static func draw(_ annotation: Annotation, in context: CGContext, image: CGImage, pointScale: CGFloat) {
         let lineWidth = annotation.width.points * pointScale
         context.saveGState()
         defer { context.restoreGState() }
@@ -48,6 +54,8 @@ nonisolated enum Renderer {
             drawArrow(from: from, to: to, lineWidth: lineWidth, in: context)
         case let .text(string, origin):
             drawText(string, at: origin, annotation: annotation, pointScale: pointScale, in: context)
+        case let .pixelate(rect):
+            drawMosaic(rect, blockSize: annotation.width.pixelBlockSize * pointScale, image: image, in: context)
         }
     }
 
@@ -61,6 +69,36 @@ nonisolated enum Renderer {
     /// same value so typed text lines up exactly with the rendered result.
     static func lineHeight(for font: CTFont) -> CGFloat {
         CTFontGetAscent(font) + CTFontGetDescent(font) + CTFontGetLeading(font)
+    }
+
+    /// Replaces `rect` with blocks of averaged color: the area is downsampled to one pixel per
+    /// block, then scaled back up without interpolation.
+    private static func drawMosaic(_ rect: CGRect, blockSize: CGFloat, image: CGImage, in context: CGContext) {
+        let bounds = CGRect(x: 0, y: 0, width: image.width, height: image.height)
+        let area = rect.integral.intersection(bounds)
+        guard !area.isEmpty, blockSize > 0,
+              // CGImage cropping uses a top-left origin.
+              let crop = image.cropping(to: CGRect(
+                  x: area.minX, y: bounds.height - area.maxY, width: area.width, height: area.height
+              ))
+        else { return }
+
+        let columns = max(1, Int((area.width / blockSize).rounded(.up)))
+        let rows = max(1, Int((area.height / blockSize).rounded(.up)))
+        let colorSpace = crop.colorSpace.flatMap { $0.supportsOutput ? $0 : nil }
+            ?? CGColorSpace(name: CGColorSpace.sRGB)!
+        guard let small = CGContext(
+            data: nil, width: columns, height: rows, bitsPerComponent: 8, bytesPerRow: 0,
+            space: colorSpace, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return }
+        small.interpolationQuality = .high
+        small.draw(crop, in: CGRect(x: 0, y: 0, width: columns, height: rows))
+        guard let blocks = small.makeImage() else { return }
+
+        context.saveGState()
+        context.interpolationQuality = .none
+        context.draw(blocks, in: area)
+        context.restoreGState()
     }
 
     private static func drawArrow(from: CGPoint, to: CGPoint, lineWidth: CGFloat, in context: CGContext) {
@@ -109,5 +147,11 @@ nonisolated enum Renderer {
             context.textPosition = CGPoint(x: origin.x, y: origin.y - CGFloat(index) * step)
             CTLineDraw(line, context)
         }
+    }
+}
+
+private extension Annotation {
+    nonisolated var isPixelate: Bool {
+        if case .pixelate = shape { true } else { false }
     }
 }

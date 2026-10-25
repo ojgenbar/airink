@@ -12,6 +12,10 @@ final class AnnotationDocument {
         didSet { onChange?() }
     }
 
+    /// Mirrors `undoManager` (which isn't observable) for the toolbar buttons.
+    private(set) var canUndo = false
+    private(set) var canRedo = false
+
     var tool: Tool { didSet { onChange?() } }
     var color: AnnotationColor { didSet { onChange?() } }
     var width: StrokeWidth { didSet { onChange?() } }
@@ -40,10 +44,23 @@ final class AnnotationDocument {
 
     func add(_ annotation: Annotation) {
         insert(annotation, at: annotations.count)
+        refreshUndoState()
     }
 
-    func undo() { if undoManager.canUndo { undoManager.undo() } }
-    func redo() { if undoManager.canRedo { undoManager.redo() } }
+    func undo() {
+        if undoManager.canUndo { undoManager.undo() }
+        refreshUndoState()
+    }
+
+    func redo() {
+        if undoManager.canRedo { undoManager.redo() }
+        refreshUndoState()
+    }
+
+    private func refreshUndoState() {
+        canUndo = undoManager.canUndo
+        canRedo = undoManager.canRedo
+    }
 
     private func insert(_ annotation: Annotation, at index: Int) {
         annotations.insert(annotation, at: index)
