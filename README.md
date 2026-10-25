@@ -37,12 +37,25 @@ The global shortcut can be changed in **Settings** (menu-bar icon › Settings�
 
 **First use:** macOS asks *"Airink would like to paste from …"*. That's the system's pasteboard privacy prompt (macOS 26). Choose **Always Allow** so it doesn't ask again. You can change it later in System Settings › Privacy & Security › Paste from Other Apps.
 
+## Install
+
+1. Download `Airink-<version>.dmg` from [Releases](https://github.com/ojgenbar/airink/releases), open it and drag **Airink** to **Applications**.
+2. Open Airink from Applications. Airink isn't notarized by Apple yet, so macOS shows *"Apple could not verify 'Airink'…"*. Click **Done**, then go to System Settings › Privacy & Security, scroll down and click **Open Anyway**. This is needed only once per version.
+   Or, in Terminal: `xattr -dr com.apple.quarantine /Applications/Airink.app`
+3. Look for the pencil icon in the menu bar. To keep Airink running after a restart, turn on **Launch at Login** from that menu.
+
+Settings (your shortcut and last-used tool, color and width) are kept across restarts and updates. Because releases are not yet signed with an Apple Developer ID, macOS may treat each new version as a new app. After updating, you may see the paste permission prompt again and need to re-enable Launch at Login.
+
 ## Requirements
 
 - macOS 26 (Tahoe) or later
 - Xcode 26 or later to build
 
 ## Build
+
+To build the release DMG (Universal: Apple silicon + Intel), run `scripts/make-dmg.sh` → `build/Airink-<version>.dmg`.
+
+To develop:
 
 ```sh
 git clone <repo-url> airink && cd airink
@@ -78,8 +91,9 @@ Airink/
   Settings/   Settings view with shortcut recorder
 AirinkTests/  Swift Testing unit tests
 docs/DECISIONS.md  Platform investigation and architectural decisions
+scripts/      make-dmg.sh (release DMG), make-icon.swift (regenerates the app icon)
 ```
 
 ## License
 
-Add a license of your choice before publishing.
+[MIT](LICENSE)

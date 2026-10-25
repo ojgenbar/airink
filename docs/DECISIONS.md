@@ -66,3 +66,9 @@
 ## 9. Dependencies
 
 None. Frameworks used: AppKit, SwiftUI, Carbon (HIToolbox, hotkey only), ImageIO, Core Text, ServiceManagement.
+
+## 10. Distribution
+
+- Releases are DMGs built by `scripts/make-dmg.sh`: Universal (arm64 + x86_64), ad-hoc signed with the hardened runtime, and attached to GitHub Releases.
+- **Not notarized.** That needs a Developer ID certificate (Apple Developer Program). Gatekeeper blocks the first launch until the user clicks *Open Anyway*, as documented in the README.
+- An ad-hoc signature identifies only one exact build. Per-app system state can therefore reset when a user updates to a new version: the "Paste from Other Apps" choice and the Login Item. Moving to Developer ID signing fixes both, with no code changes.
