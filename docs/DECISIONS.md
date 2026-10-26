@@ -19,6 +19,7 @@
 - We register with `kEventHotKeyExclusive`. **Conflict detection is best-effort.** Carbon returns `eventHotKeyExistsErr` only when another process holds the same combination exclusively. If the combination clashes with a system shortcut (System Settings › Keyboard › Keyboard Shortcuts) or with another app that didn't register exclusively, the OS doesn't report it. In that case the first registrant usually wins without any warning. Airink shows any reported failure as an alert at launch, in the menu and in Settings.
 - **Default `⌘⇧A` overrides app-level shortcuts** that use the same combination while Airink runs, e.g. Finder's *Go › Applications*. That's inherent to global hotkeys, and the shortcut can be changed in Settings.
 - The shortcut recorder uses `NSEvent.addLocalMonitorForEvents`, which sees only keys sent to Airink's own Settings window, so it needs no permission. The global hotkey is unregistered while recording, so the current combination can be re-recorded.
+- **Keyboard layouts.** All shortcuts are bound to physical keys, not typed characters, so they stay in the same place on every input source (Russian, Dvorak, AZERTY…). The global hotkey is registered by key code. Editor shortcuts (`⌘C`, `⌘Z`, `A`/`R`/`L`/`T`/`P`, `1`–`3`) are matched by the key's US-QWERTY position, including the keypad digits. Recorded shortcuts are labeled by position too (`⇧⌘A`, not `⇧⌘Ф`). See `LatinKey`.
 
 ## 2. Clipboard access and macOS pasteboard privacy
 

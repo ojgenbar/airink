@@ -9,7 +9,7 @@ nonisolated enum EditorCommand: Equatable, Sendable {
 
     init?(keyCode: UInt16, modifierFlags: NSEvent.ModifierFlags, characters: String?) {
         let flags = modifierFlags.intersection([.command, .option, .control, .shift])
-        let key = characters?.lowercased()
+        let key = LatinKey.character(keyCode: keyCode, characters: characters)
 
         if flags == .command {
             switch key {
@@ -38,10 +38,13 @@ nonisolated enum EditorCommand: Equatable, Sendable {
         case "l": self = .tool(.line)
         case "t": self = .tool(.text)
         case "p": self = .tool(.pixelate)
-        case "1": self = .width(.thin)
-        case "2": self = .width(.medium)
-        case "3": self = .width(.thick)
-        default: return nil
+        default:
+            switch LatinKey.digit(keyCode: keyCode) {
+            case 1: self = .width(.thin)
+            case 2: self = .width(.medium)
+            case 3: self = .width(.thick)
+            default: return nil
+            }
         }
     }
 

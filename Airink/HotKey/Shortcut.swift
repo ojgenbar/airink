@@ -52,7 +52,8 @@ extension Shortcut {
 
         let label = functionKeyLabel
             ?? specialKeyLabels[Int(keyCode)]
-            ?? characters?.uppercased().trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+            ?? LatinKey.character(keyCode: keyCode, characters: characters)?
+                .uppercased().trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
             ?? "Key \(keyCode)"
         return Shortcut(keyCode: UInt32(keyCode), carbonModifiers: carbon, keyLabel: label)
     }
