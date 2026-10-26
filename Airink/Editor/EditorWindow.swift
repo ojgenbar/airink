@@ -52,7 +52,7 @@ final class EditorWindow: NSWindow {
 
     private static func textEditingAction(for event: NSEvent) -> Selector? {
         let flags = event.modifierFlags.intersection([.command, .option, .control, .shift])
-        switch (flags, event.charactersIgnoringModifiers?.lowercased()) {
+        switch (flags, LatinKey.character(keyCode: event.keyCode, characters: event.charactersIgnoringModifiers)) {
         case (.command, "c"): return #selector(NSText.copy(_:))
         case (.command, "x"): return #selector(NSText.cut(_:))
         case (.command, "v"): return #selector(NSText.paste(_:))
