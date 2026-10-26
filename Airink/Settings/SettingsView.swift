@@ -23,6 +23,10 @@ struct SettingsView: View {
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
+            Section {
+                LabeledContent("Version", value: Bundle.main.versionString)
+                    .textSelection(.enabled)
+            }
         }
         .formStyle(.grouped)
         .frame(width: 420)
@@ -64,5 +68,14 @@ private struct ShortcutRecorder: View {
                     .foregroundStyle(.secondary)
             }
         }
+    }
+}
+
+extension Bundle {
+    /// "0.1.1 (2)": marketing version and build number from Info.plist.
+    nonisolated var versionString: String {
+        let version = infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
+        let build = infoDictionary?["CFBundleVersion"] as? String ?? "?"
+        return "\(version) (\(build))"
     }
 }
