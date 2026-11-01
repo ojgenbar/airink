@@ -178,6 +178,9 @@ final class CanvasView: NSView, NSTextViewDelegate {
         guard let textView else { return }
         self.textView = nil // Set first: removing the view re-enters via textDidEndEditing.
         let string = textView.string.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Typing history lives on the window's undo manager and targets this text view,
+        // which is about to be freed. ⌘Z in the next text view must not reach it.
+        textView.undoManager?.removeAllActions()
         textView.removeFromSuperview()
         if window?.firstResponder == nil || window?.firstResponder === window {
             window?.makeFirstResponder(self)
